@@ -215,7 +215,33 @@ def get_clip_text_features():
     return feats
 
 
-def _detect_subtype(image_features, kategorie):
+def _detect_subty )Benutzeroberfläche → Datenbank → Bildspeicher → KI-Bilderkennung → Matching-System
+→ Benachrichtigungen
+Datenschutz und Sicherheit
+Da die App in einer Schule eingesetzt wird, soll der Datenschutz sehr streng umgesetzt
+werden.
+Berücksichtige insbesondere:
+• DSGVO
+• Privacy by Design
+• möglichst wenige personenbezogene Daten
+• sichere Anmeldung und Zugriffsrechte
+• Verschlüsselung
+• kurze Speicher- und Löschfristen
+• sicheren Umgang mit Fotos
+• keine unnötige Veröffentlichung von Namen oder Kontaktdaten
+• möglichst keine Speicherung von Gesichtern oder anderen Personen auf Fotos
+• sichere und möglichst anonyme Kontaktaufnahme bei einem Treffer
+• Zugangscode der Schule
+Ergebnis
+Ablauf:
+Gegenstand verloren → Verlustmeldung erstellen → Gegenstand wird gefunden →
+Fundstück fotografieren → KI analysiert es → System vergleicht beide Einträge →
+möglicher Treffer → suchende Person wird benachrichtigt → sichere Rückgabe 
+ 
+ 
+  
+   
+2/2pe(image_features, kategorie):
     """Erkennt feinere Merkmale innerhalb der Kategorie (z. B. Hoodie vs. Jacke)."""
     import torch
     subtypes = SUBTYPE_PROMPTS.get(kategorie, [])
@@ -286,9 +312,7 @@ def _clip_analyze(image):
         "alternativen": [
             {"kategorie": CATEGORIES[i], "confidence": float(cat_probs[i])}
             for i in top3_idx if i != cat_idx
-        ],
-    }
-
+    
     # Untertyp bestimmen (z. B. "Hoodie" bei "Jacke/Kleidung")
     merkmal, merkmal_conf = _detect_subtype(image_features, result["kategorie"])
     if merkmal:
