@@ -230,36 +230,7 @@ def _detect_subtype(image_features, kategorie):
         text_features = model.get_text_features(
             input_ids=inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
-        )Benutzeroberfläche → Datenbank → Bildspeicher → KI-Bilderkennung → Matching-System
-→ Benachrichtigungen
-Datenschutz und Sicherheit
-Da die App in einer Schule eingesetzt wird, soll der Datenschutz sehr streng umgesetzt
-werden.
-Berücksichtige insbesondere:
-• DSGVO
-• Privacy by Design
-• möglichst wenige personenbezogene Daten
-• sichere Anmeldung und Zugriffsrechte
-• Verschlüsselung
-• kurze Speicher- und Löschfristen
-• sicheren Umgang mit Fotos
-• keine unnötige Veröffentlichung von Namen oder Kontaktdaten
-• möglichst keine Speicherung von Gesichtern oder anderen Personen auf Fotos
-• sichere und möglichst anonyme Kontaktaufnahme bei einem Treffer
-• Zugangscode der Schule
-Ergebnis
-Ablauf:
-Gegenstand verloren → Verlustmeldung erstellen → Gegenstand wird gefunden →
-Fundstück fotografieren → KI analysiert es → System vergleicht beide Einträge →
-möglicher Treffer → suchende Person wird benachrichtigt → sichere Rückgabe 
- 
- 
-  
-   
-2/2
- 
-   
- 
+        )
        
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         similarity = (image_features @ text_features.T).squeeze(0)
