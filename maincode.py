@@ -215,7 +215,7 @@ def get_clip_text_features():
     return feats
 
 
-def _detect_subty )pe(image_features, kategorie):
+def _detect_subty )pe():
     """Erkennt feinere Merkmale innerhalb der Kategorie (z. B. Hoodie vs. Jacke)."""
     import torch
     subtypes = SUBTYPE_PROMPTS.get(kategorie, [])
