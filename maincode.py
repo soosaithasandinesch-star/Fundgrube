@@ -311,5 +311,3 @@ def analyze_image_with_ai(file_bytes):
 # 4. MATCHING-SYSTEM (AUTOMATISCHER ABGLEICH)
 # =========================================================
 def auto_abgleich(new_item, ist_fundstueck):
-    """
-    Vergleicht einen neuen Eintrag mit allen bestehenden
