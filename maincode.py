@@ -178,10 +178,8 @@ LOCATIONS = ["Sporthalle", "Pausenhof", "Mensa", "Aula", "Bibliothek/Mediothek",
 # =========================================================
 # 3. KI: OPENAI CLIP ZERO-SHOT BILDERKENNUNG
 # =========================================================
-# Wir prüfen 14 Kategorien x 8 Farben = 112 Beschreibungen pro Foto.
-
 MODEL_NAME = "openai/clip-vit-base-patch32"
-USE_FLOAT16 = False
+USE_FLOAT16 = False  # Bei wenig RAM auf True setzen + App neu starten
 
 CATEGORY_TEMPLATES = {
     "Trinkflasche":           "a photo of a {farbe} water bottle or drinking bottle",
@@ -201,14 +199,9 @@ CATEGORY_TEMPLATES = {
 }
 
 COLOR_ADJECTIVES = {
-    "Blau":    "blue",
-    "Schwarz": "black",
-    "Rot":     "red",
-    "Grün":    "green",
-    "Gelb":    "yellow",
-    "Weiß":    "white",
-    "Grau":    "gray",
-    "Bunt":    "colorful multicolored",
+    "Blau": "blue", "Schwarz": "black", "Rot": "red", "Grün": "green",
+    "Gelb": "yellow", "Weiß": "white", "Grau": "gray",
+    "Bunt": "colorful multicolored",
 }
 
 SUBTYPE_PROMPTS = {
@@ -241,7 +234,6 @@ SUBTYPE_PROMPTS = {
         ("Federmäppchen", "a photo of a pencil case"),
         ("Ordner / Mappe", "a photo of a folder or binder"),
         ("Stift", "a photo of a pen or pencil"),
-        ("Malkasten / Stifte-Set", "a photo of a set of colored pencils or paints"),
     ],
     "Elektronik": [
         ("Smartphone / Handy", "a photo of a smartphone"),
@@ -249,7 +241,6 @@ SUBTYPE_PROMPTS = {
         ("Taschenrechner", "a photo of a pocket calculator"),
         ("Tablet / Laptop", "a photo of a tablet or laptop"),
         ("Ladekabel / Ladegerät", "a photo of a charging cable or power adapter"),
-        ("Powerbank", "a photo of a power bank"),
     ],
     "Brille": [
         ("Korrekturbrille", "a photo of prescription eyeglasses"),
@@ -269,18 +260,15 @@ SUBTYPE_PROMPTS = {
     ],
     "Brotdose/Vesperbox": [
         ("Brotdose", "a photo of a lunchbox"),
-        ("Snackbox / kleine Box", "a photo of a small snack box"),
         ("Trinkbecher", "a photo of a drinking cup or tumbler"),
     ],
     "Regenschirm": [
         ("Regenschirm", "a photo of an umbrella"),
-        ("Regenhülle / Etui", "a photo of an umbrella cover case"),
     ],
     "Sportgerät": [
         ("Ball", "a photo of a ball"),
         ("Schläger", "a photo of a racket"),
         ("Springseil", "a photo of a skipping rope"),
-        ("Schwimmsachen", "a photo of swimming gear like goggles"),
     ],
     "Musikinstrument": [
         ("Blockflöte", "a photo of a recorder flute"),
@@ -289,12 +277,10 @@ SUBTYPE_PROMPTS = {
     ],
     "Sonstiges": [
         ("Spielzeug", "a photo of a toy"),
-        ("Kosmetik / Hygieneartikel", "a photo of a deodorant or cosmetic item"),
         ("Anderer Gegenstand", "a photo of a single everyday object"),
     ],
 }
 
-# Alle Prompts (Kategorie x Farbe) einmalig als Liste aufbauen.
 ALL_PROMPTS = [
     CATEGORY_TEMPLATES[cat].format(farbe=COLOR_ADJECTIVES[col])
     for cat in CATEGORIES
@@ -304,7 +290,7 @@ ALL_PROMPTS = [
 
 @st.cache_resource
 def load_clip_model():
-    """Lädt das OpenAI CLIP-Modell (über Hugging Face Transformers)."""
+    """Lädt das OpenAI CLIP-Modell (nur einmal pro App-Start)."""
     import torch
     from transformers import CLIPModel, CLIPProcessor
     dtype = torch.float16 if USE_FLOAT16 else torch.float32
@@ -316,7 +302,7 @@ def load_clip_model():
 
 @st.cache_resource
 def get_clip_text_features():
-    """Berechnet die Text-Vektoren aller Beschreibungen einmalig."""
+    """Text-Vektoren aller Beschreibungen einmalig berechnen."""
     import torch
     model, processor = load_clip_model()
     inputs = processor(text=ALL_PROMPTS, return_tensors="pt",
@@ -331,7 +317,7 @@ def get_clip_text_features():
 
 
 def _detect_subtype(image_features, kategorie):
-    """Erkennt feinere Merkmale innerhalb der Kategorie."""
+    """Erkennt feinere Merkmale (z. B. Hoodie vs. Jacke)."""
     import torch
     subtypes = SUBTYPE_PROMPTS.get(kategorie, [])
     if not subtypes:
@@ -375,13 +361,10 @@ def _clip_analyze(image):
         probs = similarity.float().softmax(dim=0).cpu().numpy()
 
     matrix = probs.reshape(len(CATEGORIES), len(COLORS))
-
     cat_probs = matrix.sum(axis=1)
     cat_idx = int(cat_probs.argmax())
-
     color_probs = matrix[cat_idx]
     color_idx = int(color_probs.argmax())
-
     top3_idx = sorted(range(len(CATEGORIES)), key=lambda i: -cat_probs[i])[:3]
 
     result = {
@@ -394,22 +377,19 @@ def _clip_analyze(image):
             for i in top3_idx if i != cat_idx
         ],
     }
-
     merkmal, merkmal_conf = _detect_subtype(image_features, result["kategorie"])
     if merkmal:
         result["merkmal"] = merkmal
         result["conf_merkmal"] = merkmal_conf
-
     return result
 
 
 @st.cache_data(show_spinner=False)
 def analyze_image_with_ai(file_bytes):
-    """Öffentliche Funktion für die UI (cached pro Foto)."""
+    """Öffentliche Funktion: wird von Screen 3 (Foto-Upload) aufgerufen."""
     import io
     image = Image.open(io.BytesIO(file_bytes))
     return _clip_analyze(image)
-
 
 # =========================================================
 # 4. MATCHING-SYSTEM (AUTOMATISCHER ABGLEICH)
