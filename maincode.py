@@ -287,6 +287,8 @@ def _clip_analyze(image):
         "alternativen": [
             {"kategorie": CATEGORIES[i], "confidence": float(cat_probs[i])}
             for i in top3_idx if i != cat_idx
+               ],
+    }
     
     # Untertyp bestimmen (z. B. "Hoodie" bei "Jacke/Kleidung")
     merkmal, merkmal_conf = _detect_subtype(image_features, result["kategorie"])
