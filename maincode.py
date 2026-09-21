@@ -3,7 +3,6 @@ import datetime
 import uuid
 from PIL import Image, ImageOps
 
-
 # =========================================================
 # 1. KONFIGURATION & STYLING (UI)
 # =========================================================
@@ -17,7 +16,7 @@ st.set_page_config(
 # Custom CSS für die Smartphone-Karten-Optik
 st.markdown("""
     <style>
-    .stApp { background-color: #f4f8fb; }
+    .stApp { background-color: #f4f8fb; color: #000000; }
     .block-container {
         max-width: 450px;
         background-color: #ffffff;
@@ -31,13 +30,13 @@ st.markdown("""
         text-align: center;
         font-weight: 800;
         font-size: 24px;
-        color: #1a1a1a;
+        color: #000000;
         margin-bottom: 5px;
     }
     .sub-title {
         text-align: center;
         font-size: 14px;
-        color: #657786;
+        color: #000000;
         margin-bottom: 25px;
     }
     div.stButton > button {
@@ -52,10 +51,21 @@ st.markdown("""
         border-radius: 12px;
         padding: 12px;
         text-align: center;
-        color: #1c529b;
+        color: #000000;
         font-size: 13px;
         margin: 10px 0;
         line-height: 1.7;
+    }
+    /* ===== Schwarze Schrift überall ===== */
+    .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
+    .stApp p, .stApp span, .stApp label, .stApp li, .stApp strong,
+    .stApp a, .stApp th, .stApp td, .stApp figcaption {
+        color: #000000 !important;
+    }
+    /* Rote Primär-Buttons behalten weiße Schrift */
+    .stApp [data-testid="stBaseButton-primary"],
+    .stApp [data-testid="baseButton-primary"] {
+        color: #ffffff !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -66,14 +76,12 @@ st.markdown("""
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
-# Anonyme Sitzungs-ID statt Name/E-Mail (DSGVO / Privacy by Design)
 if 'user_id' not in st.session_state:
     st.session_state.user_id = uuid.uuid4().hex[:8]
 
 if 'current_screen' not in st.session_state:
-    st.session_state.current_screen = "menu"  # menu, found, lost, matches, list
+    st.session_state.current_screen = "menu"
 
-# In-Memory Daten (später z. B. durch SQLite/PostgreSQL ersetzen)
 if 'found_items' not in st.session_state:
     st.session_state.found_items = []
 if 'lost_items' not in st.session_state:
@@ -85,36 +93,51 @@ if 'flash' not in st.session_state:
 if 'clip_ready' not in st.session_state:
     st.session_state.clip_ready = False
 
-# Kategorien und Orte für konsistente Eingaben
-CATEGORIES = ["Trinkflasche", "Jacke/Kleidung", "Schlüssel", "Tasche/Rucksack",
-              "Schulsachen", "Elektronik", "Sonstiges"]
+# ------------------ KATEGORIEN & ORTE ------------------
+CATEGORIES = [
+    "Trinkflasche",
+    "Jacke/Kleidung",
+    "Tasche/Rucksack",
+    "Schlüssel",
+    "Schulsachen",
+    "Elektronik",
+    "Brille",
+    "Geldbörse/Portemonnaie",
+    "Schmuck",
+    "Brotdose/Vesperbox",
+    "Regenschirm",
+    "Sportgerät",
+    "Musikinstrument",
+    "Sonstiges",
+]
 COLORS = ["Blau", "Schwarz", "Rot", "Grün", "Gelb", "Weiß", "Grau", "Bunt"]
-LOCATIONS = ["Sporthalle", "Pausenhof", "Mensa", "Flur EG", "Flur 1. OG",
-              "Klassenzimmer", "Unbekannt"]
+LOCATIONS = ["Sporthalle", "Pausenhof", "Mensa", "Aula", "Bibliothek/Mediothek",
+             "Flur EG", "Flur 1. OG", "Treppenhaus", "Toiletten/Umkleide",
+             "Klassenzimmer", "Schulgelände (außen)", "Unbekannt"]
 
 # =========================================================
 # 3. KI: OPENAI CLIP ZERO-SHOT BILDERKENNUNG
 # =========================================================
-# CLIP vergleicht ein Foto mit Text-Beschreibungen und sagt, welche am
-# besten passt ("zero-shot" = kein Training mit eigenen Fotos nötig).
-# Wir prüfen 7 Kategorien x 8 Farben = 56 Beschreibungen pro Foto.
+# Wir prüfen 14 Kategorien x 8 Farben = 112 Beschreibungen pro Foto.
 
 MODEL_NAME = "openai/clip-vit-base-patch32"
-
-# Bei wenig Arbeitsspeicher (z. B. kleines Cloud-Hosting) auf True setzen:
-# lädt das Modell in float16 (halber RAM-Bedarf, etwas langsamer).
-# WICHTIG: Danach die App einmal komplett neu starten!
 USE_FLOAT16 = False
 
-# Prompts auf Englisch, da CLIP überwiegend englisch trainiert wurde
 CATEGORY_TEMPLATES = {
-    "Trinkflasche":    "a photo of a {farbe} water bottle or drinking bottle",
-    "Jacke/Kleidung":  "a photo of a {farbe} jacket, hoodie or piece of clothing",
-    "Schlüssel":       "a photo of a {farbe} key or keychain",
-    "Tasche/Rucksack": "a photo of a {farbe} backpack, bag or purse",
-    "Schulsachen":     "a photo of {farbe} school supplies like a book, notebook, pencil case or folder",
-    "Elektronik":      "a photo of a {farbe} electronic device like a smartphone, headphones or calculator",
-    "Sonstiges":       "a photo of a {farbe} everyday object",
+    "Trinkflasche":           "a photo of a {farbe} water bottle or drinking bottle",
+    "Jacke/Kleidung":         "a photo of a {farbe} jacket, hoodie or piece of clothing",
+    "Tasche/Rucksack":        "a photo of a {farbe} backpack, bag or purse",
+    "Schlüssel":              "a photo of a {farbe} key or keychain",
+    "Schulsachen":            "a photo of {farbe} school supplies like a book, notebook, pencil case or folder",
+    "Elektronik":             "a photo of a {farbe} electronic device like a smartphone, headphones or calculator",
+    "Brille":                 "a photo of {farbe} eyeglasses or sunglasses",
+    "Geldbörse/Portemonnaie": "a photo of a {farbe} wallet or purse",
+    "Schmuck":                "a photo of {farbe} jewelry like a ring, necklace or bracelet",
+    "Brotdose/Vesperbox":     "a photo of a {farbe} lunchbox or food container",
+    "Regenschirm":            "a photo of a {farbe} umbrella",
+    "Sportgerät":             "a photo of {farbe} sports equipment like a ball or racket",
+    "Musikinstrument":        "a photo of a {farbe} musical instrument like a recorder flute or instrument case",
+    "Sonstiges":              "a photo of a {farbe} everyday object",
 }
 
 COLOR_ADJECTIVES = {
@@ -128,7 +151,6 @@ COLOR_ADJECTIVES = {
     "Bunt":    "colorful multicolored",
 }
 
-# Untertypen -> Vorschlag für das "Hinweis"-Feld (weitere sichtbare Merkmale)
 SUBTYPE_PROMPTS = {
     "Trinkflasche": [
         ("Kunststoffflasche", "a photo of a plastic water bottle"),
@@ -143,15 +165,15 @@ SUBTYPE_PROMPTS = {
         ("Schal / Handschuhe", "a photo of a scarf or gloves"),
         ("Sportsachen", "a photo of sports clothing"),
     ],
-    "Schlüssel": [
-        ("Einzelner Schlüssel", "a photo of a single key"),
-        ("Schlüsselbund mit Anhänger", "a photo of a bunch of keys on a keyring with a keychain"),
-    ],
     "Tasche/Rucksack": [
         ("Rucksack", "a photo of a backpack"),
         ("Turnbeutel", "a photo of a drawstring gym sack"),
         ("Handtasche / Schultertasche", "a photo of a handbag or shoulder bag"),
         ("Sporttasche", "a photo of a sports duffel bag"),
+    ],
+    "Schlüssel": [
+        ("Einzelner Schlüssel", "a photo of a single key"),
+        ("Schlüsselbund mit Anhänger", "a photo of a bunch of keys on a keyring with a keychain"),
     ],
     "Schulsachen": [
         ("Buch", "a photo of a book"),
@@ -159,27 +181,60 @@ SUBTYPE_PROMPTS = {
         ("Federmäppchen", "a photo of a pencil case"),
         ("Ordner / Mappe", "a photo of a folder or binder"),
         ("Stift", "a photo of a pen or pencil"),
+        ("Malkasten / Stifte-Set", "a photo of a set of colored pencils or paints"),
     ],
     "Elektronik": [
         ("Smartphone / Handy", "a photo of a smartphone"),
         ("Kopfhörer / Earbuds", "a photo of headphones or earbuds"),
         ("Taschenrechner", "a photo of a pocket calculator"),
-        ("Smartwatch / Uhr", "a photo of a smartwatch or wristwatch"),
         ("Tablet / Laptop", "a photo of a tablet or laptop"),
         ("Ladekabel / Ladegerät", "a photo of a charging cable or power adapter"),
+        ("Powerbank", "a photo of a power bank"),
+    ],
+    "Brille": [
+        ("Korrekturbrille", "a photo of prescription eyeglasses"),
+        ("Sonnenbrille", "a photo of sunglasses"),
+        ("Brillen-Etui", "a photo of a glasses case"),
+    ],
+    "Geldbörse/Portemonnaie": [
+        ("Geldbörse", "a photo of a wallet"),
+        ("Kleingeld-Etui", "a photo of a small coin purse"),
+    ],
+    "Schmuck": [
+        ("Halskette / Kette", "a photo of a necklace"),
+        ("Armband", "a photo of a bracelet"),
+        ("Ring", "a photo of a ring"),
+        ("Ohrringe", "a photo of earrings"),
+        ("Uhr", "a photo of a wristwatch"),
+    ],
+    "Brotdose/Vesperbox": [
+        ("Brotdose", "a photo of a lunchbox"),
+        ("Snackbox / kleine Box", "a photo of a small snack box"),
+        ("Trinkbecher", "a photo of a drinking cup or tumbler"),
+    ],
+    "Regenschirm": [
+        ("Regenschirm", "a photo of an umbrella"),
+        ("Regenhülle / Etui", "a photo of an umbrella cover case"),
+    ],
+    "Sportgerät": [
+        ("Ball", "a photo of a ball"),
+        ("Schläger", "a photo of a racket"),
+        ("Springseil", "a photo of a skipping rope"),
+        ("Schwimmsachen", "a photo of swimming gear like goggles"),
+    ],
+    "Musikinstrument": [
+        ("Blockflöte", "a photo of a recorder flute"),
+        ("Instrumentenetui", "a photo of an instrument case"),
+        ("Noten / Notenmappe", "a photo of sheet music"),
     ],
     "Sonstiges": [
-        ("Regenschirm", "a photo of an umbrella"),
-        ("Brille", "a photo of eyeglasses or sunglasses"),
-        ("Brotdose / Vesperbox", "a photo of a lunchbox"),
         ("Spielzeug", "a photo of a toy"),
-        ("Sportgerät (z. B. Ball)", "a photo of sports equipment like a ball"),
+        ("Kosmetik / Hygieneartikel", "a photo of a deodorant or cosmetic item"),
         ("Anderer Gegenstand", "a photo of a single everyday object"),
     ],
 }
 
-# Alle 56 Prompts (Kategorie x Farbe) einmalig als Liste aufbauen.
-# Reihenfolge ist wichtig: Index = Kategorie-Index * 8 + Farb-Index
+# Alle Prompts (Kategorie x Farbe) einmalig als Liste aufbauen.
 ALL_PROMPTS = [
     CATEGORY_TEMPLATES[cat].format(farbe=COLOR_ADJECTIVES[col])
     for cat in CATEGORIES
@@ -189,8 +244,7 @@ ALL_PROMPTS = [
 
 @st.cache_resource
 def load_clip_model():
-    """Lädt das OpenAI CLIP-Modell (über Hugging Face Transformers).
-    Dank @st.cache_resource passiert das nur EINMAL pro App-Start."""
+    """Lädt das OpenAI CLIP-Modell (über Hugging Face Transformers)."""
     import torch
     from transformers import CLIPModel, CLIPProcessor
     dtype = torch.float16 if USE_FLOAT16 else torch.float32
@@ -202,7 +256,7 @@ def load_clip_model():
 
 @st.cache_resource
 def get_clip_text_features():
-    """Berechnet die Text-Vektoren aller 56 Beschreibungen einmalig."""
+    """Berechnet die Text-Vektoren aller Beschreibungen einmalig."""
     import torch
     model, processor = load_clip_model()
     inputs = processor(text=ALL_PROMPTS, return_tensors="pt",
@@ -217,7 +271,7 @@ def get_clip_text_features():
 
 
 def _detect_subtype(image_features, kategorie):
-    """Erkennt feinere Merkmale innerhalb der Kategorie (z. B. Hoodie vs. Jacke)."""
+    """Erkennt feinere Merkmale innerhalb der Kategorie."""
     import torch
     subtypes = SUBTYPE_PROMPTS.get(kategorie, [])
     if not subtypes:
@@ -232,7 +286,6 @@ def _detect_subtype(image_features, kategorie):
             input_ids=inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
         )
-       
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         similarity = (image_features @ text_features.T).squeeze(0)
         probs = similarity.float().softmax(dim=0)
@@ -241,12 +294,11 @@ def _detect_subtype(image_features, kategorie):
 
 
 def _clip_analyze(image):
-    """Reine CLIP-Berechnung ohne Streamlit-Aufrufe (cache-freundlich)."""
+    """Reine CLIP-Berechnung ohne Streamlit-Aufrufe."""
     import torch
     model, processor = load_clip_model()
     text_features = get_clip_text_features()
 
-    # Handy-Fotos: Ausrichtung laut EXIF korrigieren, in RGB umwandeln
     image = ImageOps.exif_transpose(image)
     if image.mode != "RGB":
         image = image.convert("RGB")
@@ -257,26 +309,19 @@ def _clip_analyze(image):
         pixel_values = pixel_values.half()
 
     with torch.no_grad():
-        # Bild-Vektor berechnen
         image_features = model.get_image_features(pixel_values=pixel_values)
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-
-        # Ähnlichkeit Foto <-> alle 56 Beschreibungen -> Wahrscheinlichkeiten
         similarity = (image_features @ text_features.T).squeeze(0)
         probs = similarity.float().softmax(dim=0).cpu().numpy()
 
-    # 56 Wahrscheinlichkeiten als Tabelle anordnen: 7 Kategorien x 8 Farben
     matrix = probs.reshape(len(CATEGORIES), len(COLORS))
 
-    # Kategorie = Summe über alle Farbkombinationen
     cat_probs = matrix.sum(axis=1)
     cat_idx = int(cat_probs.argmax())
 
-    # Farbe = beste Farbe INNERHALB der erkannten Kategorie
     color_probs = matrix[cat_idx]
     color_idx = int(color_probs.argmax())
 
-    # Top-3 Kategorien als Korrektur-Vorschläge
     top3_idx = sorted(range(len(CATEGORIES)), key=lambda i: -cat_probs[i])[:3]
 
     result = {
@@ -287,10 +332,9 @@ def _clip_analyze(image):
         "alternativen": [
             {"kategorie": CATEGORIES[i], "confidence": float(cat_probs[i])}
             for i in top3_idx if i != cat_idx
-               ],
+        ],
     }
-    
-    # Untertyp bestimmen (z. B. "Hoodie" bei "Jacke/Kleidung")
+
     merkmal, merkmal_conf = _detect_subtype(image_features, result["kategorie"])
     if merkmal:
         result["merkmal"] = merkmal
@@ -301,9 +345,7 @@ def _clip_analyze(image):
 
 @st.cache_data(show_spinner=False)
 def analyze_image_with_ai(file_bytes):
-    """Öffentliche Funktion für die UI: erhält die rohen Bild-Bytes und
-    cached das Ergebnis pro Foto (damit bei Streamlit-Reruns nicht neu
-    gerechnet werden muss)."""
+    """Öffentliche Funktion für die UI (cached pro Foto)."""
     import io
     image = Image.open(io.BytesIO(file_bytes))
     return _clip_analyze(image)
@@ -311,6 +353,33 @@ def analyze_image_with_ai(file_bytes):
 
 # =========================================================
 # 4. MATCHING-SYSTEM (AUTOMATISCHER ABGLEICH)
+# =========================================================
+def auto_abgleich(new_item, ist_fundstueck):
+    """Vergleicht einen neuen Eintrag mit allen Gegenstücken.
+    Treffer = gleiche Kategorie UND gleiche Farbe."""
+    if ist_fundstueck:
+        kandidaten = [l for l in st.session_state.lost_items
+                      if l.get("status") != "zurueckgegeben"]
+    else:
+        kandidaten = [f for f in st.session_state.found_items
+                      if f.get("status") != "zurueckgegeben"]
+
+    treffer = 0
+    for anderer in kandidaten:
+        if (anderer["kategorie"] == new_item["kategorie"]
+                and anderer["farbe"] == new_item["farbe"]):
+            if ist_fundstueck:
+                st.session_state.matches.append({"found_item": new_item,
+                                                 "lost_item": anderer})
+            else:
+                st.session_state.matches.append({"found_item": anderer,
+                                                 "lost_item": new_item})
+            treffer += 1
+    return treffer
+
+
+# =========================================================
+# SCREEN 1: LOGIN (Zugangscode "BigD")
 # =========================================================
 if not st.session_state.logged_in:
     st.markdown("<div style='font-size: 60px; text-align: center;'>📦</div>",
@@ -335,7 +404,6 @@ if not st.session_state.logged_in:
 # ANGEMELDETER BEREICH (HAUPT-APP)
 # =========================================================
 else:
-    # Navigation-Header (Profil / Logout)
     col_head1, col_head2 = st.columns([3, 1])
     with col_head1:
         st.caption("🏫 Schul-Fundbüro")
@@ -348,7 +416,6 @@ else:
     # SCREEN 2: HAUPTMENÜ
     # -----------------------------------------------------
     if st.session_state.current_screen == "menu":
-        # Erfolgsmeldungen nach dem Speichern anzeigen
         if st.session_state.flash:
             st.success(st.session_state.flash)
             st.session_state.flash = None
@@ -379,7 +446,6 @@ else:
                 st.session_state.current_screen = "matches"
                 st.rerun()
 
-        # Datenschutz-Bereich (kurze Speicher-/Löschfristen, DSGVO)
         st.divider()
         with st.expander("🔒 Datenschutz & Daten"):
             st.caption("Alle Daten liegen nur temporär im Arbeitsspeicher dieser Sitzung "
@@ -395,7 +461,7 @@ else:
                 st.rerun()
 
     # -----------------------------------------------------
-    # SCREEN 3: FUNDSTÜCK ERFASSEN ("Ich habe etwas gefunden")
+    # SCREEN 3: FUNDSTÜCK ERFASSEN
     # -----------------------------------------------------
     elif st.session_state.current_screen == "found":
         if st.button("← Zurück zum Hauptmenü"):
@@ -418,7 +484,6 @@ else:
                                              type=["jpg", "jpeg", "png"],
                                              label_visibility="collapsed")
 
-        # Defaults, falls keine KI-Analyse möglich ist
         detected_category = CATEGORIES[0]
         detected_color = COLORS[0]
         ai_results = None
@@ -433,7 +498,6 @@ else:
                         "des CLIP-Modells, ca. 600 MB) – das dauert einige Minuten. "
                         "Danach geht es schnell.")
 
-            # ---------- KI-ANALYSE (OpenAI CLIP, Zero-Shot) ----------
             try:
                 with st.spinner("🤖 KI analysiert das Foto (CLIP Zero-Shot)..."):
                     ai_results = analyze_image_with_ai(uploaded_file.getvalue())
@@ -483,7 +547,6 @@ else:
                              placeholder="z. B. Schwarzer Deckel, Kratzer am Boden")
 
         if st.button("Fundstück Speichern", type="primary"):
-            # Kleines Vorschaubild erzeugen (spart Speicher, DSGVO-freundlich)
             foto_thumb = None
             if uploaded_file is not None:
                 foto_thumb = ImageOps.exif_transpose(image).copy()
@@ -502,7 +565,6 @@ else:
             }
             st.session_state.found_items.append(new_item)
 
-            # AUTOMATISCHER ABGLEICH mit bestehenden Verlustmeldungen
             anzahl_treffer = auto_abgleich(new_item, ist_fundstueck=True)
 
             if anzahl_treffer > 0:
@@ -560,7 +622,6 @@ else:
                 }
                 st.session_state.lost_items.append(new_lost)
 
-                # Automatischen Abgleich durchführen
                 anzahl = auto_abgleich(new_lost, ist_fundstueck=False)
 
                 if anzahl > 0:
@@ -584,7 +645,6 @@ else:
 
         st.title("Meine Meldungen & Treffer")
 
-        # ---------- Meine Suchmeldungen ----------
         st.subheader("📋 Meine Suchmeldungen")
         meine_meldungen = [l for l in st.session_state.lost_items
                            if l.get("owner") == st.session_state.user_id]
@@ -602,7 +662,6 @@ else:
 
         st.divider()
 
-        # ---------- Benachrichtigungen / Treffer ----------
         st.subheader("🔔 Benachrichtigungen")
         meine_matches = [m for m in st.session_state.matches
                          if m["lost_item"].get("owner") == st.session_state.user_id]
@@ -625,7 +684,6 @@ else:
                     if item.get("hinweis"):
                         st.write(f"**Hinweise:** {item['hinweis']}")
 
-                    # DSGVO & Anonymisierte Rückgabe-Logik
                     st.info("📍 **Abholort:** Das Fundstück wurde im **SEKRETARIAT / beim "
                             "HAUSMEISTER** abgegeben (Schrank/Fach Nr. 4).")
 
@@ -636,7 +694,6 @@ else:
                                      type="primary"):
                             match["found_item"]["status"] = "zurueckgegeben"
                             match["lost_item"]["status"] = "zurueckgegeben"
-                            # Alle weiteren offenen Treffer zu dieser Suchmeldung entfernen
                             st.session_state.matches = [
                                 m for m in st.session_state.matches
                                 if m["lost_item"] is not match["lost_item"]
@@ -674,7 +731,7 @@ else:
         with f2:
             filter_loc = st.selectbox("Ort", ["Alle"] + LOCATIONS)
             suchtext = st.text_input("Beschreibung",
-                                    placeholder="z. B. Deckel, Kratzer, Heute ...")
+                                     placeholder="z. B. Deckel, Kratzer, Heute ...")
 
         gefiltert = active_items
         if filter_cat != "Alle":
