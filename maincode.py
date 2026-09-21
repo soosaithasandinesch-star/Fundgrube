@@ -312,4 +312,193 @@ def analyze_image_with_ai(file_bytes):
 # =========================================================
 # 4. MATCHING-SYSTEM (AUTOMATISCHER ABGLEICH)
 # =========================================================
-def auto_abgleich(new_item, ist_fundstueck):
+elif st.session_state.current_screen == "lost":
+        if st.button("← Zurück zum Hauptmenü"):
+            st.session_state.current_screen = "menu"
+            st.rerun()
+
+        st.title("Verlustmeldung erstellen")
+
+        cat = st.selectbox("* Was hast du verloren?", CATEGORIES)
+        color = st.selectbox("* Farbe", COLORS)
+        loc = st.selectbox("* Wo vermutlich verloren?", LOCATIONS)
+        time_lost = st.selectbox("* Wann ungefähr?",
+                                 ["Heute", "Gestern", "Diese Woche", "Vor längerer Zeit"])
+        details = st.text_area(
+            "Details",
+            placeholder="Beschreibe den Gegenstand möglichst genau (z. B. Aufdruck, Marke, Beschädigung)...")
+
+        st.write("**Benachrichtigung:**")
+        notify = st.radio("Benachrichtigung", ["Nur in der App", "Per E-Mail"],
+                          label_visibility="collapsed")
+        email = ""
+        if notify == "Per E-Mail":
+            email = st.text_input("E-Mail-Adresse",
+                                  placeholder="Nur für die Treffer-Benachrichtigung")
+            st.caption("🔒 Deine Adresse wird nicht öffentlich angezeigt (Privacy by Design).")
+
+        if st.button("Suchmeldung aufgeben", type="primary"):
+            if notify == "Per E-Mail" and not email.strip():
+                st.error("Bitte gib eine E-Mail-Adresse ein oder wähle 'Nur in der App'.")
+            else:
+                new_lost = {
+                    "id": max([i["id"] for i in st.session_state.lost_items], default=0) + 1,
+                    "kategorie": cat,
+                    "farbe": color,
+                    "ort": loc,
+                    "zeit": time_lost,
+                    "details": details,
+                    "owner": st.session_state.user_id,
+                    "benachrichtigung": notify,
+                    "status": "aktiv"
+                }
+                st.session_state.lost_items.append(new_lost)
+
+                # Automatischen Abgleich durchführen
+                anzahl = auto_abgleich(new_lost, ist_fundstueck=False)
+
+                if anzahl > 0:
+                    st.session_state.flash = (f"✅ Suchmeldung gespeichert! 🔔 {anzahl} "
+                                              "passendes Fundstück(e) gefunden – "
+                                              "siehe Benachrichtigungen!")
+                else:
+                    st.session_state.flash = ("✅ Suchmeldung gespeichert. Wir benachrichtigen "
+                                              "dich, sobald ein passendes Fundstück gemeldet wird!")
+
+                st.session_state.current_screen = "menu"
+                st.rerun()
+
+    # -----------------------------------------------------
+    # SCREEN 5: MEINE MELDUNGEN, BENACHRICHTIGUNGEN & TREFFER
+    # -----------------------------------------------------
+    elif st.session_state.current_screen == "matches":
+        if st.button("← Zurück zum Hauptmenü"):
+            st.session_state.current_screen = "menu"
+            st.rerun()
+
+        st.title("Meine Meldungen & Treffer")
+
+        # ---------- Meine Suchmeldungen ----------
+        st.subheader("📋 Meine Suchmeldungen")
+        meine_meldungen = [l for l in st.session_state.lost_items
+                           if l.get("owner") == st.session_state.user_id]
+        if not meine_meldungen:
+            st.info("Du hast noch keine Verlustmeldung erstellt.")
+        else:
+            for lost in meine_meldungen:
+                status = ("✅ zurückgegeben" if lost.get("status") == "zurueckgegeben"
+                          else "🔍 aktiv")
+                with st.container(border=True):
+                    st.markdown(f"**{lost['kategorie']}** ({lost['farbe']}) – {status}")
+                    st.caption(f"Verlustort: {lost['ort']} | {lost['zeit']}")
+                    if lost.get("details"):
+                        st.caption(f"Details: {lost['details']}")
+
+        st.divider()
+
+        # ---------- Benachrichtigungen / Treffer ----------
+        st.subheader("🔔 Benachrichtigungen")
+        meine_matches = [m for m in st.session_state.matches
+                         if m["lost_item"].get("owner") == st.session_state.user_id]
+
+        if not meine_matches:
+            st.info("Aktuell gibt es keine neuen Treffer für deine Suchmeldungen.")
+        else:
+            st.write("Passt dieses Fundstück zu deiner Suchmeldung?")
+            for match in meine_matches:
+                item = match["found_item"]
+                with st.container(border=True):
+                    if item.get("foto") is not None:
+                        st.image(item["foto"], width=200)
+                    st.markdown(f"### 📦 {item['kategorie']}")
+                    st.write(f"**Farbe:** {item['farbe']}")
+                    if item.get("merkmal"):
+                        st.write(f"**Merkmal:** {item['merkmal']}")
+                    st.write(f"**Fundort:** {item['ort']}")
+                    st.write(f"**Zeit:** {item['zeit']}")
+                    if item.get("hinweis"):
+                        st.write(f"**Hinweise:** {item['hinweis']}")
+
+                    # DSGVO & Anonymisierte Rückgabe-Logik
+                    st.info("📍 **Abholort:** Das Fundstück wurde im **SEKRETARIAT / beim "
+                            "HAUSMEISTER** abgegeben (Schrank/Fach Nr. 4).")
+
+                    col_m1, col_m2 = st.columns(2)
+                    with col_m1:
+                        if st.button("Ja, das ist meins!",
+                                     key=f"yes_{item['id']}_{match['lost_item']['id']}",
+                                     type="primary"):
+                            match["found_item"]["status"] = "zurueckgegeben"
+                            match["lost_item"]["status"] = "zurueckgegeben"
+                            # Alle weiteren offenen Treffer zu dieser Suchmeldung entfernen
+                            st.session_state.matches = [
+                                m for m in st.session_state.matches
+                                if m["lost_item"] is not match["lost_item"]
+                            ]
+                            st.balloons()
+                            st.session_state.flash = ("🎉 Super! Bitte hole deinen Gegenstand "
+                                                      "beim Hausmeister/Sekretariat ab "
+                                                      "(Schrank/Fach Nr. 4).")
+                            st.rerun()
+                    with col_m2:
+                        if st.button("Nein, passt nicht",
+                                     key=f"no_{item['id']}_{match['lost_item']['id']}"):
+                            st.session_state.matches = [
+                                m for m in st.session_state.matches if m is not match
+                            ]
+                            st.rerun()
+
+    # -----------------------------------------------------
+    # SCREEN 6: FUNDSTÜCKE DURCHSUCHEN
+    # -----------------------------------------------------
+    elif st.session_state.current_screen == "list":
+        if st.button("← Zurück zum Hauptmenü"):
+            st.session_state.current_screen = "menu"
+            st.rerun()
+
+        st.title("Fundstücke durchsuchen")
+
+        active_items = [i for i in st.session_state.found_items
+                        if i.get("status") != "zurueckgegeben"]
+
+        f1, f2 = st.columns(2)
+        with f1:
+            filter_cat = st.selectbox("Kategorie", ["Alle"] + CATEGORIES)
+            filter_color = st.selectbox("Farbe", ["Alle"] + COLORS)
+        with f2:
+            filter_loc = st.selectbox("Ort", ["Alle"] + LOCATIONS)
+            suchtext = st.text_input("Beschreibung",
+                                    placeholder="z. B. Deckel, Kratzer, Heute ...")
+
+        gefiltert = active_items
+        if filter_cat != "Alle":
+            gefiltert = [i for i in gefiltert if i["kategorie"] == filter_cat]
+        if filter_color != "Alle":
+            gefiltert = [i for i in gefiltert if i["farbe"] == filter_color]
+        if filter_loc != "Alle":
+            gefiltert = [i for i in gefiltert if i["ort"] == filter_loc]
+        if suchtext:
+            q = suchtext.lower()
+            gefiltert = [
+                i for i in gefiltert
+                if q in i["kategorie"].lower()
+                or q in (i.get("hinweis") or "").lower()
+                or q in (i.get("merkmal") or "").lower()
+                or q in i["zeit"].lower()
+            ]
+
+        if not gefiltert:
+            st.info("Keine Fundstücke gefunden, die zu deiner Suche passen.")
+        else:
+            st.caption(f"{len(gefiltert)} Fundstück(e) – Fotos werden nur temporär in "
+                       "dieser Sitzung gespeichert (DSGVO).")
+            for item in gefiltert:
+                with st.container(border=True):
+                    if item.get("foto") is not None:
+                        st.image(item["foto"], width=180)
+                    st.markdown(f"**{item['kategorie']}** ({item['farbe']})")
+                    if item.get("merkmal"):
+                        st.caption(f"Merkmal: {item['merkmal']}")
+                    st.write(f"Ort: {item['ort']} | Datum: {item['zeit']}")
+                    if item.get("hinweis"):
+                        st.caption(f"Hinweis: {item['hinweis']}")
