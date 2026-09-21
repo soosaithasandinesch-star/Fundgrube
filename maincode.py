@@ -3,6 +3,7 @@ import datetime
 import uuid
 from PIL import Image, ImageOps
 
+
 # =========================================================
 # 1. KONFIGURATION & STYLING (UI)
 # =========================================================
@@ -215,7 +216,7 @@ def get_clip_text_features():
     return feats
 
 
-def _detect_subty )pe():
+def _detect_subtype(image_features, kategorie):
     """Erkennt feinere Merkmale innerhalb der Kategorie (z. B. Hoodie vs. Jacke)."""
     import torch
     subtypes = SUBTYPE_PROMPTS.get(kategorie, [])
