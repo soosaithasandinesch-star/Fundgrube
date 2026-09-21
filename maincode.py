@@ -312,7 +312,213 @@ def analyze_image_with_ai(file_bytes):
 # =========================================================
 # 4. MATCHING-SYSTEM (AUTOMATISCHER ABGLEICH)
 # =========================================================
-elif st.session_state.current_screen == "lost":
+if not st.session_state.logged_in:
+    st.markdown("<div style='font-size: 60px; text-align: center;'>📦</div>",
+                unsafe_allow_html=True)
+    st.markdown("<div class='main-title'>Willkommen im<br>Schul-Fundbüro</div>",
+                unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Bitte gib den Zugangscode deiner Schule ein:</div>",
+                unsafe_allow_html=True)
+
+    code_input = st.text_input("Zugangscode", type="password",
+                               placeholder="Zugangscode eingeben",
+                               label_visibility="collapsed")
+
+    if st.button("App Starten", type="primary"):
+        if code_input == "BigD":
+            st.session_state.logged_in = True
+            st.rerun()
+        else:
+            st.error("Falscher Zugangscode! (Hinweis: Passwort ist 'BigD')")
+
+# =========================================================
+# ANGEMELDETER BEREICH (HAUPT-APP)
+# =========================================================
+else:
+    # Navigation-Header (Profil / Logout)
+    col_head1, col_head2 = st.columns([3, 1])
+    with col_head1:
+        st.caption("🏫 Schul-Fundbüro")
+    with col_head2:
+        if st.button("Abmelden", key="logout"):
+            st.session_state.logged_in = False
+            st.rerun()
+
+    # -----------------------------------------------------
+    # SCREEN 2: HAUPTMENÜ
+    # -----------------------------------------------------
+    if st.session_state.current_screen == "menu":
+        # Erfolgsmeldungen nach dem Speichern anzeigen
+        if st.session_state.flash:
+            st.success(st.session_state.flash)
+            st.session_state.flash = None
+
+        st.subheader("Was möchtest du tun?")
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("📷\n\nIch habe etwas\nGEFUNDEN", use_container_width=True):
+                st.session_state.current_screen = "found"
+                st.rerun()
+        with c2:
+            if st.button("🔍\n\nIch habe etwas\nVERLOREN", use_container_width=True):
+                st.session_state.current_screen = "lost"
+                st.rerun()
+
+        st.write("")
+        c3, c4 = st.columns(2)
+        with c3:
+            if st.button("📋\n\nFundstücke\ndurchsuchen", use_container_width=True):
+                st.session_state.current_screen = "list"
+                st.rerun()
+        with c4:
+            meine_matches = [m for m in st.session_state.matches
+                             if m["lost_item"].get("owner") == st.session_state.user_id]
+            badge = f" ({len(meine_matches)})" if meine_matches else ""
+            if st.button(f"🔔\n\nMeine Meldungen\n& Treffer{badge}", use_container_width=True):
+                st.session_state.current_screen = "matches"
+                st.rerun()
+
+        # Datenschutz-Bereich (kurze Speicher-/Löschfristen, DSGVO)
+        st.divider()
+        with st.expander("🔒 Datenschutz & Daten"):
+            st.caption("Alle Daten liegen nur temporär im Arbeitsspeicher dieser Sitzung "
+                       "und werden nicht dauerhaft gespeichert. Fotos werden als kleine "
+                       "Vorschaubilder gespeichert und beim Löschen/Abmelden bzw. beim "
+                       "Schließen der App entfernt. Es werden keine Namen oder Kontakte "
+                       "gesammelt – die Rückgabe läuft anonym über das Sekretariat.")
+            if st.button("🗑️ Alle Daten dieser Sitzung löschen"):
+                st.session_state.found_items = []
+                st.session_state.lost_items = []
+                st.session_state.matches = []
+                st.session_state.flash = "🗑️ Alle Daten wurden gelöscht."
+                st.rerun()
+
+    # -----------------------------------------------------
+    # SCREEN 3: FUNDSTÜCK ERFASSEN ("Ich habe etwas gefunden")
+    # -----------------------------------------------------
+    elif st.session_state.current_screen == "found":
+        if st.button("← Zurück zum Hauptmenü"):
+            st.session_state.current_screen = "menu"
+            st.rerun()
+
+        st.title("Fundstück melden")
+        st.write("### 1. Foto machen oder hochladen")
+        st.caption("🔒 Datenschutz: Bitte nur den Gegenstand fotografieren – keine Personen!")
+
+        quelle = st.radio("Foto-Quelle",
+                          ["📷 Mit der Kamera aufnehmen", "📁 Foto hochladen"],
+                          horizontal=True, label_visibility="collapsed")
+
+        uploaded_file = None
+        if quelle.startswith("📷"):
+            uploaded_file = st.camera_input("Foto aufnehmen", label_visibility="collapsed")
+        else:
+            uploaded_file = st.file_uploader("Foto auswählen",
+                                             type=["jpg", "jpeg", "png"],
+                                             label_visibility="collapsed")
+
+        # Defaults, falls keine KI-Analyse möglich ist
+        detected_category = CATEGORIES[0]
+        detected_color = COLORS[0]
+        ai_results = None
+        merkmal_vorschlag = ""
+
+        if uploaded_file is not None:
+            image = Image.open(uploaded_file)
+            st.image(image, caption="Foto zur Kontrolle", width=320)
+
+            if not st.session_state.clip_ready:
+                st.info("ℹ️ Die KI wird beim ersten Mal initialisiert (einmaliger Download "
+                        "des CLIP-Modells, ca. 600 MB) – das dauert einige Minuten. "
+                        "Danach geht es schnell.")
+
+            # ---------- KI-ANALYSE (OpenAI CLIP, Zero-Shot) ----------
+            try:
+                with st.spinner("🤖 KI analysiert das Foto (CLIP Zero-Shot)..."):
+                    ai_results = analyze_image_with_ai(uploaded_file.getvalue())
+                st.session_state.clip_ready = True
+            except Exception as e:
+                ai_results = None
+                st.warning(f"⚠️ KI-Analyse gerade nicht möglich ({e}). "
+                           "Bitte Kategorie und Farbe selbst auswählen.")
+
+            if ai_results is not None:
+                detected_category = ai_results["kategorie"]
+                detected_color = ai_results["farbe"]
+                merkmal_vorschlag = ai_results.get("merkmal", "")
+
+                alternativen = " | ".join(
+                    f"{a['kategorie']} ({a['confidence']:.0%})"
+                    for a in ai_results.get("alternativen", [])[:2]
+                )
+
+                st.markdown(f"""
+                    <div class="ki-box">
+                        🤖 <b>KI-Erkennung (OpenAI CLIP, Zero-Shot)</b><br>
+                        Kategorie: <b>{detected_category}</b> – {ai_results['conf_kategorie']:.0%} sicher<br>
+                        Farbe: <b>{detected_color}</b> – {ai_results['conf_farbe']:.0%} sicher<br>
+                        Merkmal: <b>{merkmal_vorschlag or '–'}</b>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                if ai_results["conf_kategorie"] < 0.30:
+                    st.caption("🤔 Die KI ist sich nicht ganz sicher – "
+                               "bitte prüfen und ggf. korrigieren!")
+                elif alternativen:
+                    st.caption(f"KI-Alternativen: {alternativen} – gerne korrigieren.")
+
+        st.write("### 2. Daten überprüfen & anpassen:")
+
+        cat_idx = CATEGORIES.index(detected_category) if detected_category in CATEGORIES else 0
+        col_idx = COLORS.index(detected_color) if detected_color in COLORS else 0
+
+        cat = st.selectbox("* Kategorie", CATEGORIES, index=cat_idx)
+        color = st.selectbox("* Hauptfarbe", COLORS, index=col_idx)
+        loc = st.selectbox("* Fundort", LOCATIONS)
+        time_found = st.text_input(
+            "* Datum/Zeit",
+            value=f"Heute, ca. {datetime.datetime.now().strftime('%H:%M')} Uhr")
+        note = st.text_input("Hinweis", value=merkmal_vorschlag,
+                             placeholder="z. B. Schwarzer Deckel, Kratzer am Boden")
+
+        if st.button("Fundstück Speichern", type="primary"):
+            # Kleines Vorschaubild erzeugen (spart Speicher, DSGVO-freundlich)
+            foto_thumb = None
+            if uploaded_file is not None:
+                foto_thumb = ImageOps.exif_transpose(image).copy()
+                foto_thumb.thumbnail((320, 320))
+
+            new_item = {
+                "id": max([i["id"] for i in st.session_state.found_items], default=0) + 1,
+                "kategorie": cat,
+                "farbe": color,
+                "ort": loc,
+                "zeit": time_found,
+                "hinweis": note,
+                "merkmal": merkmal_vorschlag,
+                "foto": foto_thumb,
+                "status": "im_fundbuero"
+            }
+            st.session_state.found_items.append(new_item)
+
+            # AUTOMATISCHER ABGLEICH mit bestehenden Verlustmeldungen
+            anzahl_treffer = auto_abgleich(new_item, ist_fundstueck=True)
+
+            if anzahl_treffer > 0:
+                st.session_state.flash = (f"✅ Fundstück gespeichert! 🔔 {anzahl_treffer} "
+                                          "mögliche(r) Treffer gefunden – siehe 'Meine "
+                                          "Meldungen & Treffer'!")
+            else:
+                st.session_state.flash = "✅ Fundstück erfolgreich gespeichert!"
+
+            st.session_state.current_screen = "menu"
+            st.rerun()
+
+    # -----------------------------------------------------
+    # SCREEN 4: VERLUSTMELDUNG ERSTELLEN
+    # -----------------------------------------------------
+    elif st.session_state.current_screen == "lost":
         if st.button("← Zurück zum Hauptmenü"):
             st.session_state.current_screen = "menu"
             st.rerun()
