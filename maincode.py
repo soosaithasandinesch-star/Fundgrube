@@ -14,9 +14,14 @@ st.set_page_config(
 )
 
 # Custom CSS für die Smartphone-Karten-Optik
+# Custom CSS für die Smartphone-Karten-Optik
 st.markdown("""
     <style>
-    .stApp { background-color: #f4f8fb; color: #000000; }
+    /* ===== GRUNDREGEL: helle Fläche -> schwarze Schrift ===== */
+    .stApp {
+        background-color: #f4f8fb;
+        color: #000000;
+    }
     .block-container {
         max-width: 450px;
         background-color: #ffffff;
@@ -25,6 +30,7 @@ st.markdown("""
         border-radius: 24px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.08);
         border: 1px solid #e1e8ed;
+        color: #000000;
     }
     .main-title {
         text-align: center;
@@ -39,12 +45,76 @@ st.markdown("""
         color: #000000;
         margin-bottom: 25px;
     }
+
+    /* Alle Texte auf hellen Hintergründen: schwarz und gut lesbar */
+    .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
+    .stApp p, .stApp li, .stApp label, .stApp strong, .stApp em,
+    .stApp th, .stApp td, .stApp small, .stApp blockquote,
+    .stApp figcaption, .stApp a {
+        color: #000000;
+    }
+    /* Auch Captions/Untertitel dunkel statt hellgrau */
+    .stApp [data-testid="stCaptionContainer"],
+    .stApp [data-testid="stCaptionContainer"] p,
+    .stApp [data-testid="stCaption"] {
+        color: #000000;
+    }
+    /* Info-/Erfolgs-/Fehler-Boxen: helle Hintergründe -> schwarze Schrift */
+    .stApp [data-testid="stAlert"],
+    .stApp [data-testid="stNotification"],
+    .stApp [data-testid="stAlert"] p,
+    .stApp [data-testid="stAlert"] span,
+    .stApp [data-testid="stAlert"] strong,
+    .stApp [data-testid="stNotification"] p,
+    .stApp [data-testid="stNotification"] span,
+    .stApp [data-testid="stNotification"] strong {
+        color: #000000;
+    }
+
+    /* ===== BUTTONS: ganze Wörter sichtbar, nichts abgeschnitten ===== */
     div.stButton > button {
         width: 100%;
+        box-sizing: border-box;
         border-radius: 12px;
-        padding: 10px 16px;
-        font-weight: 600;
+        padding: 10px 14px;
+        font-weight: 700;
+        line-height: 1.5;
+        min-height: 48px;
+        white-space: pre-line;          /* Zeilenumbrüche (\n) anzeigen */
+        overflow-wrap: break-word;      /* lange Wörter umbrechen statt abschneiden */
+        word-break: break-word;
+        color: #000000;                 /* normale Buttons: schwarze Schrift */
     }
+    /* Auch der innere Text-Container des Buttons */
+    div.stButton > button p,
+    div.stButton > button span {
+        white-space: pre-line !important;
+        overflow-wrap: break-word;
+        word-break: break-word;
+        color: inherit;
+    }
+
+    /* ===== DUNKLE FLÄCHEN -> WEISSE Schrift ===== */
+    /* Rote Primär-Buttons: dunkelroter Hintergrund + weiße fette Schrift */
+    .stApp button[kind="primary"],
+    .stApp button[data-testid="baseButton-primary"],
+    .stApp button[data-testid="stBaseButton-primary"],
+    .stApp button[data-testid="stFormSubmitButton"] {
+        background-color: #b02a2a !important;
+        border: 1px solid #8f2020 !important;
+        color: #ffffff !important;
+        font-weight: 700;
+    }
+    .stApp button[kind="primary"] p,
+    .stApp button[kind="primary"] span,
+    .stApp button[data-testid="baseButton-primary"] p,
+    .stApp button[data-testid="baseButton-primary"] span,
+    .stApp button[data-testid="stBaseButton-primary"] p,
+    .stApp button[data-testid="stBaseButton-primary"] span {
+        color: #ffffff !important;
+    }
+
+    /* KI-Box: heller blauer Hintergrund -> schwarze Schrift */
     .ki-box {
         background-color: #eef6ff;
         border: 1px dashed #2b78e4;
@@ -56,17 +126,7 @@ st.markdown("""
         margin: 10px 0;
         line-height: 1.7;
     }
-    /* ===== Schwarze Schrift überall ===== */
-    .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
-    .stApp p, .stApp span, .stApp label, .stApp li, .stApp strong,
-    .stApp a, .stApp th, .stApp td, .stApp figcaption {
-        color: #000000 !important;
-    }
-    /* Rote Primär-Buttons behalten weiße Schrift */
-    .stApp [data-testid="stBaseButton-primary"],
-    .stApp [data-testid="baseButton-primary"] {
-        color: #ffffff !important;
-    }
+    .ki-box b { color: #000000; }
     </style>
 """, unsafe_allow_html=True)
 
