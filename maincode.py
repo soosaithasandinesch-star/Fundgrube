@@ -300,6 +300,20 @@ def load_clip_model():
     return model, processor
 
 
+def _as_tensor(output):
+    """NEUER FIX: Neuere transformers-Versionen (v5+) geben statt einem
+    Tensor ein 'BaseModelOutputWithPooling'-Objekt zurück. Diese Funktion
+    holt den echten Tensor daraus heraus (kompatibel mit alt + neu)."""
+    import torch
+    if isinstance(output, torch.Tensor):
+        return output  # alte Version: direkt ein Tensor
+    for attr in ("pooler_output", "image_embeds", "text_embeds", "last_hidden_state"):
+        val = getattr(output, attr, None)
+        if val is not None:
+            return val  # neue Version: Tensor steckt hier drin
+    raise TypeError(f"Unerwarteter KI-Output-Typ: {type(output)}")
+
+
 @st.cache_resource
 def get_clip_text_features():
     """Text-Vektoren aller Beschreibungen einmalig berechnen."""
@@ -308,10 +322,10 @@ def get_clip_text_features():
     inputs = processor(text=ALL_PROMPTS, return_tensors="pt",
                        padding=True, truncation=True)
     with torch.no_grad():
-        feats = model.get_text_features(
+        feats = _as_tensor(model.get_text_features(          # FIX: _as_tensor
             input_ids=inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
-        )
+        ))
         feats = feats / feats.norm(dim=-1, keepdim=True)
     return feats
 
@@ -328,10 +342,10 @@ def _detect_subtype(image_features, kategorie):
     model, processor = load_clip_model()
     inputs = processor(text=prompts, return_tensors="pt", padding=True, truncation=True)
     with torch.no_grad():
-        text_features = model.get_text_features(
+        text_features = _as_tensor(model.get_text_features(   # FIX: _as_tensor
             input_ids=inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
-        )
+        ))
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         similarity = (image_features @ text_features.T).squeeze(0)
         probs = similarity.float().softmax(dim=0)
@@ -355,7 +369,9 @@ def _clip_analyze(image):
         pixel_values = pixel_values.half()
 
     with torch.no_grad():
-        image_features = model.get_image_features(pixel_values=pixel_values)
+        image_features = _as_tensor(                          # FIX: _as_tensor
+            model.get_image_features(pixel_values=pixel_values)
+        )
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         similarity = (image_features @ text_features.T).squeeze(0)
         probs = similarity.float().softmax(dim=0).cpu().numpy()
